@@ -28,6 +28,7 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.transport.client.Client;
 
 import com.google.common.hash.Hashing;
+import com.jayway.jsonpath.JsonPath;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -196,28 +197,22 @@ public class FieldDescriptionTask implements IndexInsightTask {
         }));
     }
     
+    /**
+     * Auto-detects LLM response format and extracts the response text.
+     */
     private String extractModelResponse(Map<String, Object> dataAsMap) {
-        if (dataAsMap == null) {
-            throw new IllegalStateException("Model inference failed");
+        // Try OpenAI format
+        if (dataAsMap.containsKey("choices")) {
+            return JsonPath.read(dataAsMap, "$.choices[0].message.content");
         }
-        
-        Map<String, Object> output = (Map<String, Object>) dataAsMap.get("output");
-        if (output == null) {
-            return (String) dataAsMap.get("response");
+
+        // Try Bedrock Claude format
+        if (dataAsMap.containsKey("output")) {
+            return JsonPath.read(dataAsMap, "$.output.message.content[0].text");
         }
-        
-        Map<String, Object> message = (Map<String, Object>) output.get("message");
-        if (message == null) {
-            throw new IllegalStateException("Model inference failed, incorrect message format");
-        }
-        
-        java.util.ArrayList<?> content = (java.util.ArrayList<?>) message.get("content");
-        if (content == null || content.isEmpty()) {
-            throw new IllegalStateException("Model inference failed, content is empty");
-        }
-        
-        Map<String, Object> firstContent = (Map<String, Object>) content.get(0);
-        return (String) firstContent.get("text");
+
+        // Fallback to generic response field
+        return JsonPath.read(dataAsMap, "$.response");
     }
     
     private Map<String, Object> parseFieldDescription(String modelResponse) {
