@@ -40,7 +40,7 @@ public class FieldDescriptionTask implements IndexInsightTask {
     private final MappingMetadata mappingMetadata;
     private final Client client;
     private final ClusterService clusterService;
-    private String status = "pending";
+    private IndexInsightTaskStatus status = IndexInsightTaskStatus.GENERATING;
     private Map<String, Object> fieldDescriptions;
     private SearchHit[] sampleDocuments;
     
@@ -53,7 +53,7 @@ public class FieldDescriptionTask implements IndexInsightTask {
     
     @Override
     public void runTaskLogic() {
-        status = "generating";
+        status = IndexInsightTaskStatus.GENERATING;
         try {
             String statisticalContent = getInsightContent(MLIndexInsightType.STATISTICAL_DATA);
             
@@ -83,12 +83,12 @@ public class FieldDescriptionTask implements IndexInsightTask {
     }
     
     @Override
-    public String getStatus() {
+    public IndexInsightTaskStatus getStatus() {
         return status;
     }
     
     @Override
-    public void setStatus(String status) {
+    public void setStatus(IndexInsightTaskStatus status) {
         this.status = status;
     }
     
@@ -98,7 +98,7 @@ public class FieldDescriptionTask implements IndexInsightTask {
     }
     
     @Override
-    public List<MLIndexInsightType> getDependencies() {
+    public List<MLIndexInsightType> getPrerequisites() {
         return Collections.singletonList(MLIndexInsightType.STATISTICAL_DATA);
     }
     

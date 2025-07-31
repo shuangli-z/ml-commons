@@ -18,7 +18,7 @@ public class StatisticalDataTask implements IndexInsightTask {
     private final MLIndexInsightType taskType = MLIndexInsightType.STATISTICAL_DATA;
     private final String indexName;
     private final Client client;
-    private String status = "pending";
+    private IndexInsightTaskStatus status = IndexInsightTaskStatus.GENERATING;
     private SearchHit[] sampleDocuments;
     
     public StatisticalDataTask(String indexName, Client client) {
@@ -28,7 +28,7 @@ public class StatisticalDataTask implements IndexInsightTask {
     
     @Override
     public void runTaskLogic() {
-        status = "generating";
+        status = IndexInsightTaskStatus.GENERATING;
         try {
             collectSampleDocuments();
         } catch (Exception e) {
@@ -48,12 +48,12 @@ public class StatisticalDataTask implements IndexInsightTask {
     }
     
     @Override
-    public String getStatus() {
+    public IndexInsightTaskStatus getStatus() {
         return status;
     }
     
     @Override
-    public void setStatus(String status) {
+    public void setStatus(IndexInsightTaskStatus status) {
         this.status = status;
     }
     
@@ -63,7 +63,7 @@ public class StatisticalDataTask implements IndexInsightTask {
     }
     
     @Override
-    public List<MLIndexInsightType> getDependencies() {
+    public List<MLIndexInsightType> getPrerequisites() {
         return Collections.emptyList();
     }
     
