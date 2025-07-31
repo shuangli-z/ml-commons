@@ -34,7 +34,8 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 public class FieldDescriptionTask implements IndexInsightTask {
     
-    private final String targetIndex;
+    private final MLIndexInsightType taskType = MLIndexInsightType.FIELD_DESCRIPTION;
+    private final String indexName;
     private final MappingMetadata mappingMetadata;
     private final Client client;
     private final ClusterService clusterService;
@@ -42,8 +43,8 @@ public class FieldDescriptionTask implements IndexInsightTask {
     private Map<String, Object> fieldDescriptions;
     private SearchHit[] sampleDocuments;
     
-    public FieldDescriptionTask(String targetIndex, MappingMetadata mappingMetadata, Client client, ClusterService clusterService) {
-        this.targetIndex = targetIndex;
+    public FieldDescriptionTask(String indexName, MappingMetadata mappingMetadata, Client client, ClusterService clusterService) {
+        this.indexName = indexName;
         this.mappingMetadata = mappingMetadata;
         this.client = client;
         this.clusterService = clusterService;
@@ -65,19 +66,19 @@ public class FieldDescriptionTask implements IndexInsightTask {
             String prompt = generateFieldDescriptionPrompt(statisticalContent);
             callLLM(prompt, modelId);
         } catch (Exception e) {
-            log.error("Failed to execute field description task for index {}", targetIndex, e);
+            log.error("Failed to execute field description task for index {}", indexName, e);
             saveFailedStatus();
         }
     }
     
     @Override
     public MLIndexInsightType getTaskType() {
-        return MLIndexInsightType.FIELD_DESCRIPTION;
+        return taskType;
     }
     
     @Override
     public String getTargetIndex() {
-        return targetIndex;
+        return indexName;
     }
     
     @Override
@@ -109,7 +110,7 @@ public class FieldDescriptionTask implements IndexInsightTask {
     }
     
     private String getInsightContent(MLIndexInsightType taskType) {
-        String docId = generateDocId(targetIndex, taskType);
+        String docId = generateDocId(indexName, taskType);
         GetRequest getRequest = new GetRequest(ML_INDEX_INSIGHT_INDEX, docId);
         
         try {
@@ -119,7 +120,7 @@ public class FieldDescriptionTask implements IndexInsightTask {
             }
             return "";
         } catch (Exception e) {
-            log.warn("Failed to get insight content for {} task of index {}", taskType, targetIndex, e);
+            log.warn("Failed to get insight content for {} task of index {}", taskType, indexName, e);
             return "";
         }
     }
@@ -127,12 +128,12 @@ public class FieldDescriptionTask implements IndexInsightTask {
     private String generateFieldDescriptionPrompt(String statisticalContent) {
         Map<String, Object> mappingSource = (Map<String, Object>) mappingMetadata.getSourceAsMap().get("properties");
         if (mappingSource == null) {
-            return "No mapping properties found for index: " + targetIndex;
+            return "No mapping properties found for index: " + indexName;
         }
 
         StringBuilder prompt = new StringBuilder();
         prompt.append("Please analyze the following OpenSearch index structure and provide insights:\\n\\n");
-        prompt.append("Index Name: ").append(targetIndex).append("\\n\\n");
+        prompt.append("Index Name: ").append(indexName).append("\\n\\n");
         prompt.append("Index Mapping:\\n");
 
         StringJoiner mappingInfo = new StringJoiner("\\n");
@@ -179,7 +180,7 @@ public class FieldDescriptionTask implements IndexInsightTask {
         );
 
         client.execute(MLPredictionTaskAction.INSTANCE, request, ActionListener.wrap(mlTaskResponse -> {
-            log.info("LLM call successful for field description: {}", targetIndex);
+            log.info("LLM call successful for field description: {}", indexName);
             ModelTensorOutput modelTensorOutput = (ModelTensorOutput) mlTaskResponse.getOutput();
             ModelTensors modelTensors = modelTensorOutput.getMlModelOutputs().get(0);
             ModelTensor modelTensor = modelTensors.getMlModelTensors().get(0);
@@ -188,9 +189,9 @@ public class FieldDescriptionTask implements IndexInsightTask {
             String response = extractModelResponse(dataAsMap);
             fieldDescriptions = parseFieldDescription(response);
             saveResult(response);
-            log.info("Field description completed for: {}", targetIndex);
+            log.info("Field description completed for: {}", indexName);
         }, e -> {
-            log.error("Failed to call LLM for field description: {}", targetIndex, e);
+            log.error("Failed to call LLM for field description: {}", indexName, e);
             saveFailedStatus();
         }));
     }

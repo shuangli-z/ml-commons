@@ -219,7 +219,7 @@ public interface IndexInsightTask {
     MLIndexInsightType getTaskType();
     
     /**
-     * Get the target index name
+     * Get the index name
      * @return the index name
      */
     String getTargetIndex();
