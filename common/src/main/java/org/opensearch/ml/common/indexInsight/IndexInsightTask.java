@@ -25,7 +25,7 @@ import lombok.extern.log4j.Log4j2;
  */
 public interface IndexInsightTask {
 
-    long GENERATING_TIMEOUT = 30 * 60 * 1000; // 30 minutes - temporary setting
+    long GENERATING_TIMEOUT = 3 * 60 * 1000; // 3 minutes - temporary setting
     long UPDATE_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours - temporary setting
     
     /**
@@ -129,19 +129,46 @@ public interface IndexInsightTask {
             try {
                 GetResponse response = getClient().get(getRequest).actionGet();
                 if (!response.isExists()) {
-                    // Prerequisite not found, skip execution
+                    // Prerequisite not found, set failed status
+                    saveFailedStatus();
                     return;
                 }
                 
                 Map<String, Object> source = response.getSourceAsMap();
                 String prereqStatus = (String) source.get("status");
+                Long prereqLastUpdateTime = (Long) source.get("last_updated_time");
+                long currentTime = Instant.now().toEpochMilli();
                 
-                if (!IndexInsightTaskStatus.COMPLETED.toString().equals(prereqStatus)) {
-                    // Prerequisite not completed, skip execution
+                if (IndexInsightTaskStatus.GENERATING.toString().equals(prereqStatus)) {
+                    // If prerequisite is generating, wait for full timeout
+                    try {
+                        Thread.sleep(GENERATING_TIMEOUT);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        saveFailedStatus();
+                        return;
+                    }
+                    // Re-check status after waiting
+                    GetResponse updatedResponse = getClient().get(getRequest).actionGet();
+                    if (updatedResponse.isExists()) {
+                        Map<String, Object> updatedSource = updatedResponse.getSourceAsMap();
+                        String updatedStatus = (String) updatedSource.get("status");
+                        if (!IndexInsightTaskStatus.COMPLETED.toString().equals(updatedStatus)) {
+                            saveFailedStatus();
+                            return;
+                        }
+                    } else {
+                        saveFailedStatus();
+                        return;
+                    }
+                } else if (IndexInsightTaskStatus.FAILED.toString().equals(prereqStatus)) {
+                    // Prerequisite failed, set failed status
+                    saveFailedStatus();
                     return;
                 }
             } catch (Exception e) {
-                // Error checking prerequisite, skip execution
+                // Error checking prerequisite, set failed status
+                saveFailedStatus();
                 return;
             }
         }
