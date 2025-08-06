@@ -841,8 +841,7 @@ public class MachineLearningPlugin extends Plugin
                 client,
                 sdkClient,
                 connectorAccessControlHelper,
-                mlFeatureEnabledSetting,
-                mlIndicesHandler
+                mlFeatureEnabledSetting
             );
 
         if (mlFeatureEnabledSetting.isMetricCollectionEnabled()) {
