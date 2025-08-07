@@ -37,6 +37,11 @@ import com.jayway.jsonpath.JsonPath;
 
 import lombok.extern.log4j.Log4j2;
 
+/**
+ * Field Description Task: Generates descriptions for index fields using LLM.
+ * This task analyzes index mapping and sample data to provide meaningful descriptions
+ * for each field in the index, helping down-stream tasks understand the purpose and content of fields.
+ */
 @Log4j2
 public class FieldDescriptionTask implements IndexInsightTask {
     
@@ -57,7 +62,7 @@ public class FieldDescriptionTask implements IndexInsightTask {
     }
     
     @Override
-    public void runTaskLogic() {
+    public void runTaskLogic(ActionListener<IndexInsight> listener) {
         status = IndexInsightTaskStatus.GENERATING;
         try {
             String statisticalContent = getInsightContent(MLIndexInsightType.STATISTICAL_DATA);
@@ -66,13 +71,15 @@ public class FieldDescriptionTask implements IndexInsightTask {
             if (modelId == null || modelId.trim().isEmpty()) {
                 log.error("No model ID configured for index insight");
                 saveFailedStatus();
+                listener.onFailure(new Exception("No model ID configured"));
                 return;
             }
             
-            batchProcessFields(statisticalContent, modelId);
+            batchProcessFields(statisticalContent, modelId, listener);
         } catch (Exception e) {
             log.error("Failed to execute field description task for index {}", indexName, e);
             saveFailedStatus();
+            listener.onFailure(e);
         }
     }
     
@@ -142,7 +149,7 @@ public class FieldDescriptionTask implements IndexInsightTask {
         }
     }
     
-    private void batchProcessFields(String statisticalContent, String modelId) {
+    private void batchProcessFields(String statisticalContent, String modelId, ActionListener<IndexInsight> listener) {
         Map<String, Object> mappingSource = (Map<String, Object>) mappingMetadata.getSourceAsMap().get("properties");
         if (mappingSource == null) {
             log.error("No mapping properties found for index: {}", indexName);
@@ -156,7 +163,17 @@ public class FieldDescriptionTask implements IndexInsightTask {
         if (allFields.isEmpty()) {
             log.warn("No fields found for index: {}", indexName);
             fieldDescriptions = Collections.emptyMap();
-            saveResult("");
+            saveResult("", ActionListener.wrap(
+                insight -> {
+                    log.info("Empty field description completed for: {}", indexName);
+                    listener.onResponse(insight);
+                },
+                e -> {
+                    log.error("Failed to save empty field description result for index {}", indexName, e);
+                    saveFailedStatus();
+                    listener.onFailure(e);
+                }
+            ));
             return;
         }
 
@@ -176,10 +193,20 @@ public class FieldDescriptionTask implements IndexInsightTask {
                 // If any batch fails, the entire task is marked as failed and no partial results are saved in ML_INDEX_INSIGHT_INDEX
                 if (!hasErrors.get()) {
                     fieldDescriptions = resultsMap;
-                    saveResult(resultsMap.toString());
-                    log.info("Field description completed for: {}", indexName);
+                    saveResult(resultsMap.toString(), ActionListener.wrap(
+                        insight -> {
+                            log.info("Field description completed for: {}", indexName);
+                            listener.onResponse(insight);
+                        },
+                        e -> {
+                            log.error("Failed to save field description result for index {}", indexName, e);
+                            saveFailedStatus();
+                            listener.onFailure(e);
+                        }
+                    ));
                 } else {
                     saveFailedStatus();
+                    listener.onFailure(new Exception("Batch processing failed"));
                 }
             }
         }, e -> {
@@ -188,6 +215,7 @@ public class FieldDescriptionTask implements IndexInsightTask {
             log.error("Batch processing failed for index {}: {}", indexName, e.getMessage());
             if (countDownLatch.getCount() == 0 && isCompleted.compareAndSet(false, true)) {
                 saveFailedStatus();
+                listener.onFailure(new Exception("Batch processing failed"));
             }
         });
 
@@ -226,7 +254,6 @@ public class FieldDescriptionTask implements IndexInsightTask {
         RemoteInferenceInputDataSet inputDataSet = RemoteInferenceInputDataSet
             .builder()
             .parameters(Collections.singletonMap("prompt", prompt))
-            .actionType(ActionType.BATCH_PREDICT)
             .build();
 
         MLPredictionTaskRequest request = new MLPredictionTaskRequest(
@@ -352,5 +379,13 @@ public class FieldDescriptionTask implements IndexInsightTask {
         }
 
         return field2Desc;
+    }
+    
+    @Override
+    public IndexInsightTask createPrerequisiteTask(MLIndexInsightType prerequisiteType) {
+        if (prerequisiteType == MLIndexInsightType.STATISTICAL_DATA) {
+            return new StatisticalDataTask(indexName, client);
+        }
+        throw new IllegalArgumentException("Unsupported prerequisite type: " + prerequisiteType);
     }
 }

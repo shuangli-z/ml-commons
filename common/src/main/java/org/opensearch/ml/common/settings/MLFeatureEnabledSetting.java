@@ -5,11 +5,14 @@
 
 package org.opensearch.ml.common.settings;
 
+import static org.opensearch.ml.common.settings.MLCommonsSettings.ML_COMMONS_AGENTIC_MEMORY_ENABLED;
+import static org.opensearch.ml.common.settings.MLCommonsSettings.ML_COMMONS_AGENTIC_SEARCH_ENABLED;
 import static org.opensearch.ml.common.settings.MLCommonsSettings.ML_COMMONS_AGENT_FRAMEWORK_ENABLED;
 import static org.opensearch.ml.common.settings.MLCommonsSettings.ML_COMMONS_CONNECTOR_PRIVATE_IP_ENABLED;
 import static org.opensearch.ml.common.settings.MLCommonsSettings.ML_COMMONS_CONTROLLER_ENABLED;
 import static org.opensearch.ml.common.settings.MLCommonsSettings.ML_COMMONS_EXECUTE_TOOL_ENABLED;
 import static org.opensearch.ml.common.settings.MLCommonsSettings.ML_COMMONS_LOCAL_MODEL_ENABLED;
+import static org.opensearch.ml.common.settings.MLCommonsSettings.ML_COMMONS_MCP_CONNECTOR_ENABLED;
 import static org.opensearch.ml.common.settings.MLCommonsSettings.ML_COMMONS_MCP_SERVER_ENABLED;
 import static org.opensearch.ml.common.settings.MLCommonsSettings.ML_COMMONS_METRIC_COLLECTION_ENABLED;
 import static org.opensearch.ml.common.settings.MLCommonsSettings.ML_COMMONS_MULTI_TENANCY_ENABLED;
@@ -52,6 +55,12 @@ public class MLFeatureEnabledSetting {
 
     private volatile Boolean isExecuteToolEnabled;
 
+    private volatile Boolean isAgenticSearchEnabled;
+
+    private volatile Boolean isMcpConnectorEnabled;
+
+    private volatile Boolean isAgenticMemoryEnabled;
+
     private final List<SettingsChangeListener> listeners = new ArrayList<>();
 
     public MLFeatureEnabledSetting(ClusterService clusterService, Settings settings) {
@@ -68,6 +77,9 @@ public class MLFeatureEnabledSetting {
         isMetricCollectionEnabled = ML_COMMONS_METRIC_COLLECTION_ENABLED.get(settings);
         isStaticMetricCollectionEnabled = ML_COMMONS_STATIC_METRIC_COLLECTION_ENABLED.get(settings);
         isExecuteToolEnabled = ML_COMMONS_EXECUTE_TOOL_ENABLED.get(settings);
+        isAgenticSearchEnabled = ML_COMMONS_AGENTIC_SEARCH_ENABLED.get(settings);
+        isMcpConnectorEnabled = ML_COMMONS_MCP_CONNECTOR_ENABLED.get(settings);
+        isAgenticMemoryEnabled = ML_COMMONS_AGENTIC_MEMORY_ENABLED.get(settings);
 
         clusterService
             .getClusterSettings()
@@ -91,6 +103,9 @@ public class MLFeatureEnabledSetting {
             .getClusterSettings()
             .addSettingsUpdateConsumer(MLCommonsSettings.ML_COMMONS_RAG_PIPELINE_FEATURE_ENABLED, it -> isRagSearchPipelineEnabled = it);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ML_COMMONS_EXECUTE_TOOL_ENABLED, it -> isExecuteToolEnabled = it);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ML_COMMONS_AGENTIC_SEARCH_ENABLED, it -> isAgenticSearchEnabled = it);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ML_COMMONS_MCP_CONNECTOR_ENABLED, it -> isMcpConnectorEnabled = it);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ML_COMMONS_AGENTIC_MEMORY_ENABLED, it -> isAgenticMemoryEnabled = it);
     }
 
     /**
@@ -189,10 +204,26 @@ public class MLFeatureEnabledSetting {
         return isExecuteToolEnabled;
     }
 
+    /**
+     * Whether the Agentic memory APIs are enabled. If disabled, Agentic memory APIs in ml-commons will be blocked
+     * @return whether the agentic memory feature is enabled.
+     */
+    public boolean isAgenticMemoryEnabled() {
+        return isAgenticMemoryEnabled;
+    }
+
     @VisibleForTesting
     public void notifyMultiTenancyListeners(boolean isEnabled) {
         for (SettingsChangeListener listener : listeners) {
             listener.onMultiTenancyEnabledChanged(isEnabled);
         }
+    }
+
+    public boolean isAgenticSearchEnabled() {
+        return isAgenticSearchEnabled;
+    }
+
+    public boolean isMcpConnectorEnabled() {
+        return isMcpConnectorEnabled;
     }
 }

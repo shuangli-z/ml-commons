@@ -3,11 +3,10 @@ package org.opensearch.ml.common.indexInsight;
 import java.util.Locale;
 
 public enum MLIndexInsightType {
-    ALL,
     STATISTICAL_DATA,
     FIELD_DESCRIPTION,
     INDEX_DESCRIPTION,
-    LOG_JUDGEMENT;
+    LOG_RELATED_INDEX_CHECK;
 
     public static MLIndexInsightType fromString(String type) {
         if (type == null) {

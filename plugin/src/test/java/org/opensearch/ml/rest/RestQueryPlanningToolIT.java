@@ -5,6 +5,7 @@
 
 package org.opensearch.ml.rest;
 
+import static org.opensearch.ml.common.settings.MLCommonsSettings.ML_COMMONS_AGENTIC_SEARCH_ENABLED;
 import static org.opensearch.ml.engine.tools.QueryPlanningTool.MODEL_ID_FIELD;
 
 import java.io.IOException;
@@ -40,8 +41,7 @@ public class RestQueryPlanningToolIT extends MLCommonsRestTestCase {
         + GITHUB_CI_AWS_REGION
         + "\",\n"
         + "      \"service_name\": \"bedrock\",\n"
-        + "      \"model\": \"us.anthropic.claude-3-7-sonnet-20250219-v1:0\",\n"
-        + "      \"system_prompt\":\"please help answer the user question. \"\n"
+        + "      \"model\": \"us.anthropic.claude-3-7-sonnet-20250219-v1:0\"\n"
         + "    },\n"
         + "    \"credential\": {\n"
         + "      \"access_key\":\" "
@@ -62,7 +62,7 @@ public class RestQueryPlanningToolIT extends MLCommonsRestTestCase {
         + "        \"headers\": {\n"
         + "          \"content-type\": \"application/json\"\n"
         + "        },\n"
-        + "        \"request_body\": \"{ \\\"system\\\": [{\\\"text\\\": \\\"${parameters.system_prompt}\\\"}], \\\"messages\\\": [{\\\"role\\\":\\\"user\\\",\\\"content\\\":[{\\\"text\\\":\\\"${parameters.prompt}\\\"}]}]}\"\n"
+        + "        \"request_body\": \"{ \\\"system\\\": [{\\\"text\\\": \\\"${parameters.system_prompt}\\\"}], \\\"messages\\\": [{\\\"role\\\":\\\"user\\\",\\\"content\\\":[{\\\"text\\\":\\\"${parameters.query_text}\\\"}]}]}\"\n"
         + "      }\n"
         + "    ]\n"
         + "}";
@@ -73,6 +73,8 @@ public class RestQueryPlanningToolIT extends MLCommonsRestTestCase {
         if (AWS_ACCESS_KEY_ID == null) {
             return;
         }
+        // enable agentic search
+        updateClusterSettings(ML_COMMONS_AGENTIC_SEARCH_ENABLED.getKey(), true);
         queryPlanningModelId = registerQueryPlanningModel();
     }
 

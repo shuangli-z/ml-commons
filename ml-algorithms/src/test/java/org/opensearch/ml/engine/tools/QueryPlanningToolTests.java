@@ -14,8 +14,14 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.opensearch.ml.common.settings.MLCommonsSettings.ML_COMMONS_AGENTIC_SEARCH_DISABLED_MESSAGE;
 import static org.opensearch.ml.engine.tools.QueryPlanningTool.DEFAULT_DESCRIPTION;
+import static org.opensearch.ml.engine.tools.QueryPlanningTool.INDEX_MAPPING_FIELD;
 import static org.opensearch.ml.engine.tools.QueryPlanningTool.MODEL_ID_FIELD;
+import static org.opensearch.ml.engine.tools.QueryPlanningTool.QUERY_FIELDS_FIELD;
+import static org.opensearch.ml.engine.tools.QueryPlanningTool.SYSTEM_PROMPT_FIELD;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,7 +37,9 @@ import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.opensearch.OpenSearchException;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.ml.common.settings.MLFeatureEnabledSetting;
 import org.opensearch.ml.common.spi.tools.Tool;
 import org.opensearch.transport.client.Client;
 
@@ -46,6 +54,9 @@ public class QueryPlanningToolTests {
     @Mock
     private MLModelTool queryGenerationTool;
 
+    @Mock
+    private MLFeatureEnabledSetting mlFeatureEnabledSetting;
+
     private Map<String, String> validParams;
     private Map<String, String> emptyParams;
 
@@ -55,9 +66,16 @@ public class QueryPlanningToolTests {
     public void setup() {
         MockitoAnnotations.openMocks(this);
         MLModelTool.Factory.getInstance().init(client);
-        factory = new QueryPlanningTool.Factory();
+
+        // Mock the MLFeatureEnabledSetting to return true for agentic search
+        when(mlFeatureEnabledSetting.isAgenticSearchEnabled()).thenReturn(true);
+
+        // Initialize the factory with mocked dependencies
+        factory = QueryPlanningTool.Factory.getInstance();
+        factory.init(client, mlFeatureEnabledSetting);
+
         validParams = new HashMap<>();
-        validParams.put("prompt", "test prompt");
+        validParams.put(SYSTEM_PROMPT_FIELD, "test prompt");
         emptyParams = Collections.emptyMap();
     }
 
@@ -83,7 +101,10 @@ public class QueryPlanningToolTests {
         ActionListener<String> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
         // test try to update the prompt
         validParams
-            .put("prompt", "You are a query generation agent. Generate a dsl query for the following question: ${parameters.query_text}");
+            .put(
+                SYSTEM_PROMPT_FIELD,
+                "You are a query generation agent. Generate a dsl query for the following question: ${parameters.query_text}"
+            );
         validParams.put("query_text", "help me find some books related to wind");
         tool.run(validParams, listener);
 
@@ -124,9 +145,8 @@ public class QueryPlanningToolTests {
         ActionListener<String> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
         validParams.put("query_text", "help me find some books related to wind");
         tool.run(validParams, listener);
-        String multiMatchQueryString =
-            "{ \"query\": { \"multi_match\" : { \"query\":    \"help me find some books related to wind\",  \"fields\": [\"*\"] } } }";
-        assertEquals(multiMatchQueryString, future.get());
+        String defaultQueryString = "{\"size\":10,\"query\":{\"match_all\":{}}}";
+        assertEquals(defaultQueryString, future.get());
     }
 
     @Test
@@ -142,9 +162,8 @@ public class QueryPlanningToolTests {
         ActionListener<String> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
         validParams.put("query_text", "help me find some books related to wind");
         tool.run(validParams, listener);
-        String multiMatchQueryString =
-            "{ \"query\": { \"multi_match\" : { \"query\":    \"help me find some books related to wind\",  \"fields\": [\"*\"] } } }";
-        assertEquals(multiMatchQueryString, future.get());
+        String defaultQueryString = "{\"size\":10,\"query\":{\"match_all\":{}}}";
+        assertEquals(defaultQueryString, future.get());
     }
 
     @Test
@@ -160,14 +179,13 @@ public class QueryPlanningToolTests {
         ActionListener<String> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
         validParams.put("query_text", "help me find some books related to wind");
         tool.run(validParams, listener);
-        String multiMatchQueryString =
-            "{ \"query\": { \"multi_match\" : { \"query\":    \"help me find some books related to wind\",  \"fields\": [\"*\"] } } }";
-        assertEquals(multiMatchQueryString, future.get());
+        String defaultQueryString = "{\"size\":10,\"query\":{\"match_all\":{}}}";
+        assertEquals(defaultQueryString, future.get());
     }
 
     @Test
     public void testValidate() {
-        Tool tool = QueryPlanningTool.Factory.getInstance().create(Collections.emptyMap());
+        Tool tool = QueryPlanningTool.Factory.getInstance().create(Map.of("model_id", "test_model_id"));
         assertTrue(tool.validate(validParams));
         assertFalse(tool.validate(emptyParams));
         assertFalse(tool.validate(null));
@@ -175,7 +193,7 @@ public class QueryPlanningToolTests {
 
     @Test
     public void testToolGetters() {
-        Tool tool = QueryPlanningTool.Factory.getInstance().create(Collections.emptyMap());
+        Tool tool = QueryPlanningTool.Factory.getInstance().create(Map.of("model_id", "test_model_id"));
         assertEquals(QueryPlanningTool.TYPE, tool.getName());
         assertEquals(QueryPlanningTool.TYPE, tool.getType());
         assertEquals(DEFAULT_DESCRIPTION, tool.getDescription());
@@ -204,7 +222,7 @@ public class QueryPlanningToolTests {
         ArgumentCaptor<Map<String, String>> captor = ArgumentCaptor.forClass(Map.class);
         doAnswer(invocation -> {
             Map<String, String> params = invocation.getArgument(0);
-            assertNotNull(params.get("prompt"));
+            assertNotNull(params.get(SYSTEM_PROMPT_FIELD));
             return null;
         }).when(queryGenerationTool).run(captor.capture(), any());
     }
@@ -268,5 +286,53 @@ public class QueryPlanningToolTests {
 
         Exception exception = assertThrows(IllegalArgumentException.class, () -> factory.create(map));
         assertEquals("Invalid generation type: invalid. The current supported types are llmGenerated.", exception.getMessage());
+    }
+
+    @Test
+    public void testAllParameterProcessing() {
+        QueryPlanningTool tool = new QueryPlanningTool("llmGenerated", queryGenerationTool);
+        Map<String, String> parameters = new HashMap<>();
+        parameters.put("query_text", "test query");
+        parameters.put(INDEX_MAPPING_FIELD, "{\"properties\":{\"title\":{\"type\":\"text\"}}}");
+        parameters.put(QUERY_FIELDS_FIELD, "[\"title\", \"content\"]");
+        // No system_prompt - should use default
+
+        @SuppressWarnings("unchecked")
+        ActionListener<String> listener = mock(ActionListener.class);
+
+        doAnswer(invocation -> {
+            ActionListener<String> modelListener = invocation.getArgument(1);
+            modelListener.onResponse("{\"query\":{\"match\":{\"title\":\"test\"}}}");
+            return null;
+        }).when(queryGenerationTool).run(any(), any());
+
+        tool.run(parameters, listener);
+
+        ArgumentCaptor<Map<String, String>> captor = ArgumentCaptor.forClass(Map.class);
+        verify(queryGenerationTool).run(captor.capture(), any());
+
+        Map<String, String> capturedParams = captor.getValue();
+
+        // All parameters should be processed
+        assertTrue(capturedParams.containsKey("query_text"));
+        assertTrue(capturedParams.containsKey(INDEX_MAPPING_FIELD));
+        assertTrue(capturedParams.containsKey(QUERY_FIELDS_FIELD));
+        assertTrue(capturedParams.containsKey(SYSTEM_PROMPT_FIELD));
+
+        // Processed parameters should be JSON strings
+        assertTrue(capturedParams.get(INDEX_MAPPING_FIELD).startsWith("\""));
+        assertTrue(capturedParams.get(QUERY_FIELDS_FIELD).startsWith("\""));
+    }
+
+    @Test
+    public void testFactoryCreateWhenAgenticSearchDisabled() {
+        // Mock the MLFeatureEnabledSetting to return false for agentic search
+        when(mlFeatureEnabledSetting.isAgenticSearchEnabled()).thenReturn(false);
+
+        Map<String, Object> map = new HashMap<>();
+        map.put(QueryPlanningTool.MODEL_ID_FIELD, "modelId");
+
+        Exception exception = assertThrows(OpenSearchException.class, () -> factory.create(map));
+        assertEquals(ML_COMMONS_AGENTIC_SEARCH_DISABLED_MESSAGE, exception.getMessage());
     }
 }

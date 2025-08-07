@@ -29,6 +29,11 @@ import com.jayway.jsonpath.JsonPath;
 
 import lombok.extern.log4j.Log4j2;
 
+/**
+ * Index Description Task: Generates comprehensive description of the entire index using LLM.
+ * This task analyzes the overall index structure, field mappings, and sample data to provide
+ * a thorough understanding of what the index stores and its intended purpose.
+ */
 @Log4j2
 public class IndexDescriptionTask implements IndexInsightTask {
     
@@ -48,7 +53,7 @@ public class IndexDescriptionTask implements IndexInsightTask {
     }
 
     @Override
-    public void runTaskLogic() {
+    public void runTaskLogic(ActionListener<IndexInsight> listener) {
         status = IndexInsightTaskStatus.GENERATING;
         try {
             String statisticalContent = getInsightContent(MLIndexInsightType.STATISTICAL_DATA);
@@ -57,14 +62,16 @@ public class IndexDescriptionTask implements IndexInsightTask {
             if (modelId == null || modelId.trim().isEmpty()) {
                 log.error("No model ID configured for index insight");
                 saveFailedStatus();
+                listener.onFailure(new Exception("No model ID configured"));
                 return;
             }
 
             String prompt = generateIndexDescriptionPrompt(statisticalContent);
-            callLLM(prompt, modelId);
+            callLLM(prompt, modelId, listener);
         } catch (Exception e) {
             log.error("Failed to execute index description task for index {}", indexName, e);
             saveFailedStatus();
+            listener.onFailure(e);
         }
     }
 
@@ -157,12 +164,13 @@ public class IndexDescriptionTask implements IndexInsightTask {
         }
     }
 
-    private void callLLM(String prompt, String modelId) {
+    private void callLLM(String prompt, String modelId, ActionListener<IndexInsight> listener) {
         RemoteInferenceInputDataSet inputDataSet = RemoteInferenceInputDataSet
             .builder()
             .parameters(Collections.singletonMap("prompt", prompt))
             .build();
 
+        // TODO: use existing agent id
         MLPredictionTaskRequest request = new MLPredictionTaskRequest(
             modelId,
             MLInput.builder().algorithm(FunctionName.REMOTE).inputDataset(inputDataSet).build(),
@@ -179,11 +187,21 @@ public class IndexDescriptionTask implements IndexInsightTask {
 
             String response = extractModelResponse(dataAsMap);
             indexDescription = parseIndexDescription(response);
-            saveResult(indexDescription);
-            log.info("Index description completed for: {}", indexName);
+            saveResult(indexDescription, ActionListener.wrap(
+                insight -> {
+                    log.info("Index description completed for: {}", indexName);
+                    listener.onResponse(insight);
+                },
+                e -> {
+                    log.error("Failed to save index description result for index {}", indexName, e);
+                    saveFailedStatus();
+                    listener.onFailure(e);
+                }
+            ));
         }, e -> {
             log.error("Failed to call LLM for index description: {}", indexName, e);
             saveFailedStatus();
+            listener.onFailure(e);
         }));
     }
 
@@ -207,5 +225,13 @@ public class IndexDescriptionTask implements IndexInsightTask {
 
     private String parseIndexDescription(String modelResponse) {
         return modelResponse.trim();
+    }
+    
+    @Override
+    public IndexInsightTask createPrerequisiteTask(MLIndexInsightType prerequisiteType) {
+        if (prerequisiteType == MLIndexInsightType.STATISTICAL_DATA) {
+            return new StatisticalDataTask(indexName, client);
+        }
+        throw new IllegalArgumentException("Unsupported prerequisite type: " + prerequisiteType);
     }
 }
