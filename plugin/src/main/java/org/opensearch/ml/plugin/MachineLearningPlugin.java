@@ -311,12 +311,9 @@ import org.opensearch.ml.rest.RestMLCreateMemoryContainerAction;
 import org.opensearch.ml.rest.RestMLDeleteAgentAction;
 import org.opensearch.ml.rest.RestMLDeleteConnectorAction;
 import org.opensearch.ml.rest.RestMLDeleteControllerAction;
-<<<<<<< HEAD
 import org.opensearch.ml.rest.RestMLDeleteIndexInsightContainerAction;
-=======
 import org.opensearch.ml.rest.RestMLDeleteMemoryAction;
 import org.opensearch.ml.rest.RestMLDeleteMemoryContainerAction;
->>>>>>> ls/addIndexInsightJob
 import org.opensearch.ml.rest.RestMLDeleteModelAction;
 import org.opensearch.ml.rest.RestMLDeleteModelGroupAction;
 import org.opensearch.ml.rest.RestMLDeleteTaskAction;
@@ -938,7 +935,7 @@ public class MachineLearningPlugin extends Plugin
         RestMLDeleteModelGroupAction restMLDeleteModelGroupAction = new RestMLDeleteModelGroupAction(mlFeatureEnabledSetting);
         RestMLCreateConnectorAction restMLCreateConnectorAction = new RestMLCreateConnectorAction(mlFeatureEnabledSetting);
         RestMLGetConnectorAction restMLGetConnectorAction = new RestMLGetConnectorAction(clusterService, settings, mlFeatureEnabledSetting);
-        RestMLGetIndexInsightAction restMLGetIndexInsightAction = new RestMLGetIndexInsightAction(clusterService, settings);
+        RestMLGetIndexInsightAction restMLGetIndexInsightAction = new RestMLGetIndexInsightAction(clusterService, settings, mlFeatureEnabledSetting);
         RestMLPutIndexInsightContainerAction restMLPutIndexInsightContainerAction = new RestMLPutIndexInsightContainerAction(mlFeatureEnabledSetting);
         RestMLDeleteIndexInsightContainerAction restMLDeleteIndexInsightContainerAction = new RestMLDeleteIndexInsightContainerAction(mlFeatureEnabledSetting);
         RestMLDeleteConnectorAction restMLDeleteConnectorAction = new RestMLDeleteConnectorAction(mlFeatureEnabledSetting);
