@@ -22,6 +22,7 @@ import java.util.concurrent.CompletableFuture;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.opensearch.OpenSearchStatusException;
@@ -97,6 +98,9 @@ public class TransportDeleteMemoryContainerActionTests extends OpenSearchTestCas
     @Mock
     private MemoryContainerHelper memoryContainerHelper;
 
+    @Captor
+    private ArgumentCaptor<Exception> exceptionCaptor;
+
     TransportDeleteMemoryContainerAction transportDeleteMemoryContainerAction;
     MLMemoryContainerDeleteRequest mlMemoryContainerDeleteRequest;
     ThreadContext threadContext;
@@ -149,6 +153,9 @@ public class TransportDeleteMemoryContainerActionTests extends OpenSearchTestCas
         threadContext = new ThreadContext(settings);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
+
+        // Setup ML feature settings
+        when(mlFeatureEnabledSetting.isAgenticMemoryEnabled()).thenReturn(true); // Enable by default for tests
     }
 
     @Test
@@ -296,5 +303,26 @@ public class TransportDeleteMemoryContainerActionTests extends OpenSearchTestCas
                         && exception.getMessage().contains("User doesn't have permissions to delete this memory container")
                 )
             );
+    }
+
+    public void testDoExecuteWithAgenticMemoryDisabled() throws InterruptedException {
+        // Disable agentic memory feature
+        when(mlFeatureEnabledSetting.isAgenticMemoryEnabled()).thenReturn(false);
+
+        // Create request
+        MLMemoryContainerDeleteRequest request = MLMemoryContainerDeleteRequest.builder().memoryContainerId(MEMORY_CONTAINER_ID).build();
+
+        // Execute
+        transportDeleteMemoryContainerAction.doExecute(null, request, actionListener);
+
+        // Verify failure response due to feature being disabled
+        ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
+        verify(actionListener).onFailure(exceptionCaptor.capture());
+        Exception exception = exceptionCaptor.getValue();
+        assertNotNull(exception);
+        assertTrue(exception instanceof OpenSearchStatusException);
+        OpenSearchStatusException statusException = (OpenSearchStatusException) exception;
+        assertEquals(RestStatus.FORBIDDEN, statusException.status());
+        assertEquals("The Agentic Memory APIs are not enabled. To enable, please update the setting plugins.ml_commons.agentic_memory_enabled", exception.getMessage());
     }
 }
