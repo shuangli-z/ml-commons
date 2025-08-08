@@ -104,8 +104,6 @@ public class MLIndicesHandler {
         initMLIndexIfAbsent(MLIndex.AGENT, listener);
     }
 
-
-
     public void initMLIndexIfAbsent(MLIndex index, ActionListener<Boolean> listener) {
         String indexName = index.getIndexName();
         String mapping = index.getMapping();
