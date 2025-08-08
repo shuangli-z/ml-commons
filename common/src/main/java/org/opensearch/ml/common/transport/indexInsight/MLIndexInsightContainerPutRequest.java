@@ -10,47 +10,43 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.ml.common.indexInsight.MLIndexInsightType;
 
 import lombok.Getter;
 
 @Getter
-public class MLIndexInsightGetRequest extends ActionRequest {
-    String indexName;
-    MLIndexInsightType targetIndexInsight;
-    String tenantId;
+public class MLIndexInsightContainerPutRequest extends ActionRequest {
+    private String indexName;
+    private String tenantId;
 
-    public MLIndexInsightGetRequest(String indexName, MLIndexInsightType targetIndexInsight, String tenantId) {
+    public MLIndexInsightContainerPutRequest(String indexName, String tenantId) {
         this.indexName = indexName;
-        this.targetIndexInsight = targetIndexInsight;
         this.tenantId = tenantId;
     }
 
-    public MLIndexInsightGetRequest(StreamInput in) throws IOException {
+    public MLIndexInsightContainerPutRequest(StreamInput in) throws IOException {
         super(in);
         this.indexName = in.readString();
-        this.targetIndexInsight = MLIndexInsightType.fromString(in.readString());
         this.tenantId = in.readOptionalString();
     }
 
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
-
-    public static MLIndexInsightGetRequest fromActionRequest(ActionRequest actionRequest) {
-        if (actionRequest instanceof MLIndexInsightGetRequest) {
-            return (MLIndexInsightGetRequest) actionRequest;
+    public static MLIndexInsightContainerPutRequest fromActionRequest(ActionRequest actionRequest) {
+        if (actionRequest instanceof MLIndexInsightContainerPutRequest) {
+            return (MLIndexInsightContainerPutRequest) actionRequest;
         }
 
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream(); OutputStreamStreamOutput osso = new OutputStreamStreamOutput(baos)) {
             actionRequest.writeTo(osso);
             try (StreamInput input = new InputStreamStreamInput(new ByteArrayInputStream(baos.toByteArray()))) {
-                return new MLIndexInsightGetRequest(input);
+                return new MLIndexInsightContainerPutRequest(input);
             }
         } catch (IOException e) {
-            throw new UncheckedIOException("failed to parse ActionRequest into MLIndexInsightGetRequest", e);
+            throw new UncheckedIOException("failed to parse ActionRequest into MLIndexInsightContainerPutRequest", e);
         }
 
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        return null;
     }
 }
