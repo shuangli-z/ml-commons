@@ -96,8 +96,6 @@ public class MLIndicesHandler {
         initMLIndexIfAbsent(MLIndex.JOBS, listener);
     }
 
-
-
     public void initMLAgentIndex(ActionListener<Boolean> listener) {
         initMLIndexIfAbsent(MLIndex.AGENT, listener);
     }
