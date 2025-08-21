@@ -7,8 +7,8 @@ package org.opensearch.ml.action.IndexInsight;
 
 import static org.opensearch.ml.common.CommonValue.FIXED_INDEX_INSIGHT_CONTAINER_ID;
 import static org.opensearch.ml.common.CommonValue.ML_INDEX_INSIGHT_CONTAINER_INDEX;
-import static org.opensearch.ml.common.indexInsight.IndexInsight.CONTENT_FIELD;
 import static org.opensearch.ml.common.indexInsight.IndexInsight.CONTAINER_NAME_FIELD;
+import static org.opensearch.ml.common.indexInsight.IndexInsight.CONTENT_FIELD;
 import static org.opensearch.ml.common.indexInsight.IndexInsight.LAST_UPDATE_FIELD;
 import static org.opensearch.ml.common.indexInsight.IndexInsight.STATUS_FIELD;
 import static org.opensearch.ml.common.indexInsight.IndexInsight.TASK_TYPE_FIELD;
@@ -92,7 +92,8 @@ public class CreateIndexInsightContainerTransportAction extends HandledTransport
             .containerName(mlIndexInsightContainerCreateRequest.getContainerName())
             .tenantId(tenantId)
             .build();
-        // The container is a doc in system index, and it defines where we store the index insight. The index insight is a user index inside user's cluster.
+        // The container is a doc in system index, and it defines where we store the index insight. The index insight is a user index inside
+        // user's cluster.
         checkWhetherExist(indexInsightContainer, ActionListener.wrap(r -> {
             indexIndexInsightContainer(indexInsightContainer, ActionListener.wrap(r1 -> {
                 initIndexInsightIndex(mlIndexInsightContainerCreateRequest.getContainerName(), ActionListener.wrap(r2 -> {
