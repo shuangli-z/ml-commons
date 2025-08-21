@@ -68,7 +68,7 @@ public class MLIndexInsightGetResponseTests {
         String jsonStr = builder.toString();
 
         String expectedControllerResponse =
-            "{\"index_insight\":{\"index_name\":\"demo-index\",\"content\":\"demo-content\",\"status\":\"COMPLETED\",\"task_type\":\"FIELD_DESCRIPTION\",\"last_updated_time\":0}}";
+            "{\"index_insight\":{\"container_name\":\"demo-index\",\"content\":\"demo-content\",\"status\":\"COMPLETED\",\"task_type\":\"FIELD_DESCRIPTION\",\"last_updated_time\":0}}";
         assertEquals(expectedControllerResponse, jsonStr);
     }
 

@@ -8,7 +8,7 @@ package org.opensearch.ml.action.IndexInsight;
 import static org.opensearch.ml.common.CommonValue.FIXED_INDEX_INSIGHT_CONTAINER_ID;
 import static org.opensearch.ml.common.CommonValue.ML_INDEX_INSIGHT_CONTAINER_INDEX;
 import static org.opensearch.ml.common.indexInsight.IndexInsight.CONTENT_FIELD;
-import static org.opensearch.ml.common.indexInsight.IndexInsight.INDEX_NAME_FIELD;
+import static org.opensearch.ml.common.indexInsight.IndexInsight.CONTAINER_NAME_FIELD;
 import static org.opensearch.ml.common.indexInsight.IndexInsight.LAST_UPDATE_FIELD;
 import static org.opensearch.ml.common.indexInsight.IndexInsight.STATUS_FIELD;
 import static org.opensearch.ml.common.indexInsight.IndexInsight.TASK_TYPE_FIELD;
@@ -89,14 +89,13 @@ public class CreateIndexInsightContainerTransportAction extends HandledTransport
         String tenantId = mlIndexInsightContainerCreateRequest.getTenantId();
         IndexInsightContainer indexInsightContainer = IndexInsightContainer
             .builder()
-            .indexName(mlIndexInsightContainerCreateRequest.getIndexName())
+            .containerName(mlIndexInsightContainerCreateRequest.getContainerName())
             .tenantId(tenantId)
             .build();
-        // The container is a doc in system index, and it defines where we store the index insight. The index insight is an user index
-        // inside user's cluster.
+        // The container is a doc in system index, and it defines where we store the index insight. The index insight is a user index inside user's cluster.
         checkWhetherExist(indexInsightContainer, ActionListener.wrap(r -> {
             indexIndexInsightContainer(indexInsightContainer, ActionListener.wrap(r1 -> {
-                initIndexInsightIndex(mlIndexInsightContainerCreateRequest.getIndexName(), ActionListener.wrap(r2 -> {
+                initIndexInsightIndex(mlIndexInsightContainerCreateRequest.getContainerName(), ActionListener.wrap(r2 -> {
                     log.info("Successfully created index insight container");
                     listener.onResponse(new AcknowledgedResponse(true));
                 }, e -> {
@@ -190,7 +189,7 @@ public class CreateIndexInsightContainerTransportAction extends HandledTransport
         }
     }
 
-    private void initIndexInsightIndex(String indexName, ActionListener<Boolean> listener) {
+    private void initIndexInsightIndex(String containerName, ActionListener<Boolean> listener) {
         Map<String, Object> indexSettings = new HashMap<>();
         Map<String, Object> indexMappings = new HashMap<>();
 
@@ -199,7 +198,7 @@ public class CreateIndexInsightContainerTransportAction extends HandledTransport
 
         // Common fields for all index types
         // Use keyword type for ID fields that need exact matching
-        properties.put(INDEX_NAME_FIELD, Map.of("type", "keyword"));
+        properties.put(CONTAINER_NAME_FIELD, Map.of("type", "keyword"));
         properties.put(CONTENT_FIELD, Map.of("type", "text"));
         properties.put(STATUS_FIELD, Map.of("type", "keyword"));
         properties.put(TASK_TYPE_FIELD, Map.of("type", "text")); // Keep as text for full-text search
@@ -208,19 +207,19 @@ public class CreateIndexInsightContainerTransportAction extends HandledTransport
         client
             .admin()
             .indices()
-            .create(new CreateIndexRequest(indexName).settings(indexSettings).mapping(indexMappings), ActionListener.wrap(response -> {
+            .create(new CreateIndexRequest(containerName).settings(indexSettings).mapping(indexMappings), ActionListener.wrap(response -> {
                 if (response.isAcknowledged()) {
-                    log.info("Successfully created index insight data index: {}", indexName);
+                    log.info("Successfully created index insight data index: {}", containerName);
                     listener.onResponse(true);
                 } else {
-                    listener.onFailure(new RuntimeException("Failed to create index insight data index: " + indexName));
+                    listener.onFailure(new RuntimeException("Failed to create index insight data index: " + containerName));
                 }
             }, e -> {
                 if (e instanceof org.opensearch.ResourceAlreadyExistsException) {
-                    log.info("index insight data index already exists: {}", indexName);
+                    log.info("index insight data index already exists: {}", containerName);
                     listener.onResponse(true);
                 } else {
-                    log.error("Error creating index insight data index: {}", indexName, e);
+                    log.error("Error creating index insight data index: {}", containerName, e);
                     listener.onFailure(e);
                 }
             }));

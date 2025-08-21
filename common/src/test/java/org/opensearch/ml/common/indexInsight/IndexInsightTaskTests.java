@@ -142,7 +142,7 @@ public class IndexInsightTaskTests {
         Map<String, Object> source = new HashMap<>();
         source.put(IndexInsight.STATUS_FIELD, "COMPLETED");
         source.put(IndexInsight.LAST_UPDATE_FIELD, Instant.now().toEpochMilli() - 3600);
-        source.put(IndexInsight.INDEX_NAME_FIELD, "test-index");
+        source.put(IndexInsight.CONTAINER_NAME_FIELD, "test-index");
         source.put(IndexInsight.TASK_TYPE_FIELD, "STATISTICAL_DATA");
         source.put(IndexInsight.CONTENT_FIELD, "test content");
         when(getResponse.getSourceAsMap()).thenReturn(source);
@@ -161,7 +161,7 @@ public class IndexInsightTaskTests {
         Map<String, Object> source = new HashMap<>();
         source.put(IndexInsight.STATUS_FIELD, "COMPLETED");
         source.put(IndexInsight.LAST_UPDATE_FIELD, Instant.now().toEpochMilli() - INDEX_INSIGHT_UPDATE_INTERVAL - 3600);
-        source.put(IndexInsight.INDEX_NAME_FIELD, "test-index");
+        source.put(IndexInsight.CONTAINER_NAME_FIELD, "test-index");
         source.put(IndexInsight.TASK_TYPE_FIELD, "STATISTICAL_DATA");
         source.put(IndexInsight.CONTENT_FIELD, "test content");
         when(getResponse.getSourceAsMap()).thenReturn(source);
@@ -280,7 +280,7 @@ public class IndexInsightTaskTests {
         Map<String, Object> prereqSource = new HashMap<>();
         prereqSource.put(IndexInsight.STATUS_FIELD, "COMPLETED");
         prereqSource.put(IndexInsight.CONTENT_FIELD, "prerequisite content");
-        prereqSource.put(IndexInsight.INDEX_NAME_FIELD, "test-index");
+        prereqSource.put(IndexInsight.CONTAINER_NAME_FIELD, "test-index");
         prereqSource.put(IndexInsight.TASK_TYPE_FIELD, "STATISTICAL_DATA");
         prereqSource.put(IndexInsight.LAST_UPDATE_FIELD, Instant.now().toEpochMilli() - 3600);
         when(prereqResponse.isExists()).thenReturn(true);

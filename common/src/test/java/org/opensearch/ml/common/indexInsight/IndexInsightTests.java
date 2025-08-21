@@ -29,7 +29,7 @@ public class IndexInsightTests {
 
     @Test
     public void testConstants() {
-        assertEquals("index_name", IndexInsight.INDEX_NAME_FIELD);
+        assertEquals("container_name", IndexInsight.CONTAINER_NAME_FIELD);
         assertEquals("last_updated_time", IndexInsight.LAST_UPDATE_FIELD);
         assertEquals("content", IndexInsight.CONTENT_FIELD);
         assertEquals("status", IndexInsight.STATUS_FIELD);
@@ -107,7 +107,7 @@ public class IndexInsightTests {
         insight.toXContent(builder, null);
         String json = builder.toString();
 
-        assertTrue(json.contains("\"index_name\":\"test-index\""));
+        assertTrue(json.contains("\"container_name\":\"test-index\""));
         assertTrue(json.contains("\"content\":\"test content\""));
         assertTrue(json.contains("\"status\":\"FAILED\""));
         assertTrue(json.contains("\"task_type\":\"FIELD_DESCRIPTION\""));
@@ -130,7 +130,7 @@ public class IndexInsightTests {
         insight.toXContent(builder, null);
         String json = builder.toString();
 
-        assertFalse(json.contains("index_name"));
+        assertFalse(json.contains("container_name"));
         assertFalse(json.contains("content"));
         assertFalse(json.contains("status"));
         assertTrue(json.contains("\"task_type\":\"STATISTICAL_DATA\""));
@@ -141,7 +141,7 @@ public class IndexInsightTests {
     public void testParseFromXContent() throws IOException {
         Instant now = Instant.ofEpochMilli(System.currentTimeMillis());
         String json =
-            "{\"index_name\":\"test-index\",\"content\":\"test content\",\"status\":\"COMPLETED\",\"task_type\":\"LOG_RELATED_INDEX_CHECK\",\"last_updated_time\":"
+            "{\"container_name\":\"test-index\",\"content\":\"test content\",\"status\":\"COMPLETED\",\"task_type\":\"LOG_RELATED_INDEX_CHECK\",\"last_updated_time\":"
                 + now.toEpochMilli()
                 + "}";
 

@@ -77,7 +77,7 @@ public interface IndexInsightTask {
                     // Return existing result
                     IndexInsight insight = IndexInsight
                         .builder()
-                        .index((String) source.get(IndexInsight.INDEX_NAME_FIELD))
+                        .index((String) source.get(IndexInsight.CONTAINER_NAME_FIELD))
                         .taskType(MLIndexInsightType.valueOf((String) source.get(IndexInsight.TASK_TYPE_FIELD)))
                         .content((String) source.get(IndexInsight.CONTENT_FIELD))
                         .status(IndexInsightTaskStatus.COMPLETED)
@@ -99,7 +99,7 @@ public interface IndexInsightTask {
     default void beginGeneration(String storageIndex, String tenantId, ActionListener<IndexInsight> listener) {
         String docId = generateDocId();
         Map<String, Object> docMap = new HashMap<>();
-        docMap.put(IndexInsight.INDEX_NAME_FIELD, getSourceIndex());
+        docMap.put(IndexInsight.CONTAINER_NAME_FIELD, getSourceIndex());
         docMap.put(IndexInsight.TASK_TYPE_FIELD, getTaskType().toString());
         docMap.put(IndexInsight.STATUS_FIELD, IndexInsightTaskStatus.GENERATING.toString());
         docMap.put(IndexInsight.LAST_UPDATE_FIELD, Instant.now().toEpochMilli());
@@ -138,7 +138,7 @@ public interface IndexInsightTask {
         String docId = generateDocId();
         long currentTime = Instant.now().toEpochMilli();
         Map<String, Object> docMap = new HashMap<>();
-        docMap.put(IndexInsight.INDEX_NAME_FIELD, getSourceIndex());
+        docMap.put(IndexInsight.CONTAINER_NAME_FIELD, getSourceIndex());
         docMap.put(IndexInsight.TASK_TYPE_FIELD, getTaskType().toString());
         docMap.put(IndexInsight.CONTENT_FIELD, content);
         docMap.put(IndexInsight.STATUS_FIELD, IndexInsightTaskStatus.COMPLETED.toString());
@@ -166,7 +166,7 @@ public interface IndexInsightTask {
     default void saveFailedStatus(String storageIndex) {
         String docId = generateDocId();
         Map<String, Object> docMap = new HashMap<>();
-        docMap.put(IndexInsight.INDEX_NAME_FIELD, getSourceIndex());
+        docMap.put(IndexInsight.CONTAINER_NAME_FIELD, getSourceIndex());
         docMap.put(IndexInsight.TASK_TYPE_FIELD, getTaskType().toString());
         docMap.put(IndexInsight.STATUS_FIELD, IndexInsightTaskStatus.FAILED.toString());
         docMap.put(IndexInsight.LAST_UPDATE_FIELD, Instant.now().toEpochMilli());

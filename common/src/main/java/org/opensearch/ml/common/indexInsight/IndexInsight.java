@@ -27,7 +27,7 @@ import lombok.Getter;
 @EqualsAndHashCode
 @Getter
 public class IndexInsight implements ToXContentObject, Writeable {
-    public static final String INDEX_NAME_FIELD = "index_name";
+    public static final String CONTAINER_NAME_FIELD = "container_name";
     public static final String LAST_UPDATE_FIELD = "last_updated_time";
     public static final String CONTENT_FIELD = "content";
     public static final String STATUS_FIELD = "status";
@@ -68,7 +68,7 @@ public class IndexInsight implements ToXContentObject, Writeable {
             parser.nextToken();
 
             switch (fieldName) {
-                case INDEX_NAME_FIELD:
+                case CONTAINER_NAME_FIELD:
                     indexName = parser.text();
                     break;
                 case CONTENT_FIELD:
@@ -110,7 +110,7 @@ public class IndexInsight implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (index != null) {
-            builder.field(INDEX_NAME_FIELD, index);
+            builder.field(CONTAINER_NAME_FIELD, index);
         }
         if (content != null && !content.isEmpty()) {
             builder.field(CONTENT_FIELD, content);
