@@ -77,7 +77,8 @@ public class StatisticalDataTask extends AbstractIndexInsightTask {
         You should help me filter at most %s important columns.
         For logs/trace/metric related indices, make sure you contain error/http response/time/latency/metric related columns.
         You should contain your response column name inside tag <column_name></column_name>
-        Here is the information of sample examples and some field's data distribution \n.
+        Here is the information of sample examples and some field's data distribution.
+        
         IndexName: %s
         detailed information: %s
         """;
@@ -194,7 +195,7 @@ public class StatisticalDataTask extends AbstractIndexInsightTask {
                             .taskType(getTaskType())
                             .content(statisticalContent)
                             .status(IndexInsightTaskStatus.COMPLETED)
-                            .lastUpdatedTime(java.time.Instant.now())
+                            .lastUpdatedTime(Instant.now())
                             .build();
                         listener.onResponse(insight);
                     }
