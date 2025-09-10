@@ -11,6 +11,8 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.opensearch.ml.common.indexInsight.IndexInsightTestHelper.mockGetSuccess;
+import static org.opensearch.ml.common.indexInsight.IndexInsightTestHelper.mockMLConfigSuccess;
+import static org.opensearch.ml.common.indexInsight.IndexInsightTestHelper.mockMLExecuteSuccess;
 import static org.opensearch.ml.common.indexInsight.IndexInsightTestHelper.mockUpdateSuccess;
 import static org.opensearch.ml.common.indexInsight.StatisticalDataTask.EXAMPLE_DOC_KEYWORD;
 import static org.opensearch.ml.common.indexInsight.StatisticalDataTask.NOT_NULL_KEYWORD;
@@ -291,8 +293,27 @@ public class StatisticalDataTaskTests {
     }
 
     @Test
+    public void testFilterSamplesColumns_WithFiltersAggregation() throws Exception {
+        Client client = mock(Client.class);
+        StatisticalDataTask task = new StatisticalDataTask("test-index", client, sdkClient);
+        Map<String, Object> listOriginal = Map.of("a", List.of(Map.of("b", 5, "c", 6)));
+        List<Map<String, Object>> result = task.filterSampleColumns(List.of(listOriginal), List.of("a.b", "a.c"));
+        assertEquals(result, List.of(listOriginal));
+
+        Map<String, Object> mapOriginal = Map.of("a", Map.of("b", 5, "c", 6));
+        List<Map<String, Object>> emptyResult = task.filterSampleColumns(List.of(mapOriginal), List.of("d"));
+        assertEquals(emptyResult, List.of(Map.of()));
+
+        List<Map<String, Object>> mapResult = task.filterSampleColumns(List.of(mapOriginal), List.of("a.b"));
+        assertEquals(mapResult, List.of(Map.of("a", Map.of("b", 5))));
+
+    }
+
+    @Test
     public void test_parseSearchResult() throws IOException {
         Client client = setupBasicClientMocks();
+        mockMLConfigSuccess(client);
+        mockMLExecuteSuccess(client, "");
         GetMappingsResponse getMappingsResponse = setupMappingResponse();
         ActionListener<IndexInsight> listener = mock(ActionListener.class);
 

@@ -16,6 +16,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.opensearch.action.search.SearchRequest;
@@ -44,6 +47,8 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.transport.client.Client;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import lombok.extern.log4j.Log4j2;
 
 /**
@@ -59,11 +64,24 @@ public class StatisticalDataTask extends AbstractIndexInsightTask {
     private static final List<String> PREFIXES = List.of("unique_terms_", "unique_count_", "max_value_", "min_value_");
     private static final List<String> UNIQUE_TERMS_LIST = List.of("text", "keyword", "integer", "long", "short");
     private static final List<String> MIN_MAX_LIST = List.of("integer", "long", "float", "double", "short", "date");
-    private static final Double IMPORTANT_COLUMN_THRESHOLD = 0.001;
+    private static final Double HIGH_PRIORITY_COLUMN_THRESHOLD = 0.001;
     private static final int SAMPLE_NUMBER = 100000;
+    private static final String PARSE_COLUMN_NAME_PATTERN = "<column_name>(.*?)</column_name>";
+    private static final int FILTER_LLM_NUMBERS = 30;
     public static final String NOT_NULL_KEYWORD = "not_null";
     public static final String IMPORTANT_COLUMN_KEYWORD = "important_column_and_distribution";
     public static final String EXAMPLE_DOC_KEYWORD = "example_docs";
+
+    private static final String PROMPT_TEMPLATE = """
+        Now I will give you the sample examples and some field's data distribution of one Opensearch index.
+        You should help me filter at most %s important columns.
+        For logs/trace/metric related indices, make sure you contain error/http response/time/latency/metric related columns.
+        You should contain your response column name inside tag <column_name></column_name>
+        Here is the information of sample examples and some field's data distribution.
+
+        IndexName: %s
+        detailed information: %s
+        """;
 
     private final String sourceIndex;
     private final Client client;
@@ -149,23 +167,39 @@ public class StatisticalDataTask extends AbstractIndexInsightTask {
             searchRequest.source(buildQuery(fieldsToType));
 
             client.search(searchRequest, ActionListener.wrap(searchResponse -> {
-                Set<String> importantColumns = filterColumns(fieldsToType, searchResponse);
-                String statisticalContent = gson.toJson(parseSearchResult(fieldsToType, importantColumns, searchResponse));
+                Set<String> highPriorityColumns = filterColumns(fieldsToType, searchResponse);
+                Map<String, Object> parsedResult = parseSearchResult(fieldsToType, highPriorityColumns, searchResponse);
+                filterImportantColumnByLLM(parsedResult, tenantId, ActionListener.wrap(response -> {
+                    Map<String, Object> filteredResponse = new HashMap<>();
+                    filteredResponse
+                        .put(
+                            EXAMPLE_DOC_KEYWORD,
+                            filterSampleColumns((List<Map<String, Object>>) parsedResult.get(EXAMPLE_DOC_KEYWORD), response)
+                        );
+                    Map<String, Object> importantColumns = (Map<String, Object>) parsedResult.get(IMPORTANT_COLUMN_KEYWORD);
+                    Map<String, Object> filteredImportantColumns = importantColumns
+                        .entrySet()
+                        .stream()
+                        .filter(entry -> response.isEmpty() || response.contains(entry.getKey()))
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                    filteredResponse.put(IMPORTANT_COLUMN_KEYWORD, filteredImportantColumns);
+                    String statisticalContent = gson.toJson(filteredResponse);
 
-                if (shouldStore) {
-                    saveResult(statisticalContent, tenantId, listener);
-                } else {
-                    // Return IndexInsight directly without storing
-                    IndexInsight insight = IndexInsight
-                        .builder()
-                        .index(sourceIndex)
-                        .taskType(getTaskType())
-                        .content(statisticalContent)
-                        .status(IndexInsightTaskStatus.COMPLETED)
-                        .lastUpdatedTime(Instant.now())
-                        .build();
-                    listener.onResponse(insight);
-                }
+                    if (shouldStore) {
+                        saveResult(statisticalContent, tenantId, listener);
+                    } else {
+                        // Return IndexInsight directly without storing
+                        IndexInsight insight = IndexInsight
+                            .builder()
+                            .index(sourceIndex)
+                            .taskType(getTaskType())
+                            .content(statisticalContent)
+                            .status(IndexInsightTaskStatus.COMPLETED)
+                            .lastUpdatedTime(Instant.now())
+                            .build();
+                        listener.onResponse(insight);
+                    }
+                }, listener::onFailure));
             }, e -> handleError("Failed to collect statistical data for index: {}", e, tenantId, listener, shouldStore)));
         }, listener::onFailure));
     }
@@ -205,7 +239,7 @@ public class StatisticalDataTask extends AbstractIndexInsightTask {
         }
 
         // Add top hits example_docs
-        TopHitsAggregationBuilder topHitsAgg = AggregationBuilders.topHits(EXAMPLE_DOC_KEYWORD).size(5);
+        TopHitsAggregationBuilder topHitsAgg = AggregationBuilders.topHits(EXAMPLE_DOC_KEYWORD).size(3);
         subAggs.addAggregator(topHitsAgg);
 
         // Add not none count
@@ -227,6 +261,82 @@ public class StatisticalDataTask extends AbstractIndexInsightTask {
             .aggregation(samplerAgg);
 
         return sourceBuilder;
+    }
+
+    private void filterImportantColumnByLLM(Map<String, Object> parsedResult, String tenantId, ActionListener<List<String>> listener) {
+        Map<String, Object> importantColumns = (Map<String, Object>) parsedResult.get(IMPORTANT_COLUMN_KEYWORD);
+        if (importantColumns.keySet().size() <= FILTER_LLM_NUMBERS) {
+            listener.onResponse(new ArrayList<>()); // Too few columns and don't need to filter
+            return;
+        }
+        String prompt = generateFilterColumnPrompt(parsedResult);
+        getAgentIdToRun(client, tenantId, ActionListener.wrap(agentId -> {
+            callLLMWithAgent(client, agentId, prompt, tenantId, ActionListener.wrap(response -> {
+                listener.onResponse(parseLLMFilteredResult(response));
+            }, e -> { listener.onResponse(new ArrayList<>()); }));
+        }, e -> { listener.onResponse(new ArrayList<>()); }));
+    }
+
+    private String generateFilterColumnPrompt(Map<String, Object> parsedResult) {
+        return String.format(PROMPT_TEMPLATE, FILTER_LLM_NUMBERS, sourceIndex, gson.toJson(parsedResult));
+    }
+
+    @VisibleForTesting
+    List<Map<String, Object>> filterSampleColumns(List<Map<String, Object>> originalDocs, List<String> targetColumns) {
+        if (targetColumns.isEmpty()) {
+            return originalDocs;
+        }
+        List<Map<String, Object>> results = new ArrayList<>();
+        for (Map<String, Object> originalDoc : originalDocs) {
+            results.add(constructFilterMap("", originalDoc, targetColumns));
+        }
+        return results;
+    }
+
+    @VisibleForTesting
+    private Map<String, Object> constructFilterMap(String prefix, Map<String, Object> currentNode, List<String> targetColumns) {
+        Map<String, Object> filterResult = new HashMap<>();
+        for (Map.Entry<String, Object> entry : currentNode.entrySet()) {
+            String currentKey = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
+            Object currentValue = entry.getValue();
+            if (targetColumns.contains(currentKey)) {
+                filterResult.put(entry.getKey(), currentValue);
+            } else if (currentValue instanceof Map) {
+                Map<String, Object> tmpNode = constructFilterMap(currentKey, (Map<String, Object>) currentValue, targetColumns);
+                if (!tmpNode.isEmpty()) {
+                    filterResult.put(entry.getKey(), tmpNode);
+                }
+            } else if (currentValue instanceof List) {
+                List<?> list = (List<?>) currentValue;
+                if (!list.isEmpty() && list.get(0) instanceof Map) {
+                    List<Map<String, Object>> newList = new ArrayList<>();
+                    for (Object item : list) {
+                        Map<String, Object> tmpNode = constructFilterMap(currentKey, (Map<String, Object>) item, targetColumns);
+                        if (!tmpNode.isEmpty()) {
+                            newList.add(tmpNode);
+                        }
+                    }
+                    if (!newList.isEmpty()) {
+                        filterResult.put(entry.getKey(), newList);
+                    }
+                }
+            }
+        }
+        return filterResult;
+    }
+
+    private List<String> parseLLMFilteredResult(String LLMResponse) {
+        try {
+            Pattern pattern = Pattern.compile(PARSE_COLUMN_NAME_PATTERN);
+            Matcher matcher = pattern.matcher(LLMResponse);
+            List<String> columns = new ArrayList<>();
+            while (matcher.find()) {
+                columns.add(matcher.group(1).trim());
+            }
+            return columns;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("fail to parse LLM response");
+        }
     }
 
     private Map<String, Object> parseSearchResult(
@@ -311,7 +421,7 @@ public class StatisticalDataTask extends AbstractIndexInsightTask {
             String targetField = bucket.getKey();
             targetField = targetField.substring(0, targetField.length() - 1 - NOT_NULL_KEYWORD.length());
             long docCount = bucket.getDocCount();
-            if (docCount > IMPORTANT_COLUMN_THRESHOLD * totalDocCount && allFieldsToType.containsKey(targetField)) {
+            if (docCount > HIGH_PRIORITY_COLUMN_THRESHOLD * totalDocCount && allFieldsToType.containsKey(targetField)) {
                 filteredNames.add(targetField);
             }
         }
